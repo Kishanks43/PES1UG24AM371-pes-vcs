@@ -185,12 +185,44 @@ int index_load(Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_save(const Index *index) {
-    // TODO: Implement atomic index saving
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
-}
+    // We cannot sort a "const" index directly, so we make a mutable copy first
+    Index sorted_index = *index;
+    qsort(sorted_index.entries, sorted_index.count, sizeof(IndexEntry), compare_index_entries);
 
+    // 1. Create a temporary file for atomic writing
+    char temp_path[] = ".pes/index_XXXXXX";
+    int fd = mkstemp(temp_path);
+    if (fd == -1) return -1;
+
+    FILE *f = fdopen(fd, "w");
+    if (!f) {
+        close(fd);
+        return -1;
+    }
+
+    // 2. Write all sorted entries to the temporary file
+    for (int i = 0; i < sorted_index.count; i++) {
+        const IndexEntry *entry = &sorted_index.entries[i];
+        char hex_hash[65];
+        hash_to_hex(&entry->hash, hex_hash);
+        
+        // Format: <mode> <hash-hex> <mtime> <size> <path>
+        fprintf(f, "%06o %s %lu %u %s\n", 
+                entry->mode, hex_hash, entry->mtime_sec, entry->size, entry->path);
+    }
+
+    // 3. Ensure data is completely pushed to the physical disk (fsync)
+    fflush(f);
+    fsync(fd);
+    fclose(f); // This automatically closes fd as well
+
+    // 4. Atomically rename the temp file over the real index file
+    if (rename(temp_path, ".pes/index") != 0) {
+        return -1;
+    }
+
+    return 0;
+}
 // Stage a file for the next commit.
 //
 // HINTS - Useful functions and syscalls:
