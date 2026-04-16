@@ -195,7 +195,10 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
         return -1;
     }
 
-    fread(buffer, 1, file_size, f);
+    if (fread(buffer, 1, file_size, f) != file_size) {
+    free(buffer);
+    return -1;
+}
     fclose(f);
 
     ObjectID computed;
