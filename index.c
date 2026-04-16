@@ -135,6 +135,12 @@ int index_status(const Index *index) {
 //   - hex_to_hash                      : converting the parsed string to ObjectID
 //
 // Returns 0 on success, -1 on error.
+static int compare_index_entries(const void *a, const void *b) {
+    const IndexEntry *entry_a = (const IndexEntry *)a;
+    const IndexEntry *entry_b = (const IndexEntry *)b;
+    return strcmp(entry_a->path, entry_b->path);
+}
+
 int index_load(Index *index) {
     // Start with an empty index
     index->count = 0;
