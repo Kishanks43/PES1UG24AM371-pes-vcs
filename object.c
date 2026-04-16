@@ -128,7 +128,8 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     }
 
     char temp_path[512];
-    if(snprintf(temp_path, sizeof(temp_path), "%s.tmp", path) >=sizeof(temp_path)){
+    int n = snprintf(temp_path, sizeof(temp_path), "%s.tmp", path);
+    if (n < 0 || (size_t)n >= sizeof(temp_path)) {
     free(buffer);
     return -1;
     }
