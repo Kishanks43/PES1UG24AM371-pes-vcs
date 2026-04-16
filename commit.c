@@ -192,20 +192,20 @@ int head_update(const ObjectID *new_commit) {
 //   - head_update     : moves the HEAD pointer to the new commit hash
 //
 // Returns 0 on success, -1 on error.
-int commit_create(const char *message) {
+// Create a new commit from the current index state.
+int commit_create(const char *message, ObjectID *commit_id_out) {
     Commit commit;
     memset(&commit, 0, sizeof(Commit));
 
-    // 1. Build the tree from the index (the snapshot of staged files)
+    // 1. Build the tree from the index
     if (tree_from_index(&commit.tree) != 0) {
         fprintf(stderr, "error: nothing to commit (is the index empty?)\n");
         return -1;
     }
 
     // 2. Set the parent commit (if HEAD exists)
-    // If head_read returns -1, it's likely the first commit (no parent).
     if (head_read(&commit.parent) != 0) {
-        // First commit: set parent hash to all zeros (already done by memset)
+        // First commit: parent hash stays all zeros
     }
 
     // 3. Set metadata
@@ -213,14 +213,14 @@ int commit_create(const char *message) {
     commit.timestamp = (uint64_t)time(NULL);
     strncpy(commit.message, message, sizeof(commit.message) - 1);
 
-    // 4. Serialize the commit struct into a text buffer
+    // 4. Serialize commit to buffer
     void *buffer = NULL;
     size_t len = 0;
     if (commit_serialize(&commit, &buffer, &len) != 0) {
         return -1;
     }
 
-    // 5. Write the commit object to the store
+    // 5. Write the commit object
     ObjectID commit_id;
     if (object_write(OBJ_COMMIT, buffer, len, &commit_id) != 0) {
         free(buffer);
@@ -228,13 +228,17 @@ int commit_create(const char *message) {
     }
     free(buffer);
 
-    // 6. Update HEAD (and the main branch) to point to the new commit
+    // 6. Update HEAD
     if (head_update(&commit_id) != 0) {
         return -1;
     }
 
-    // Success! Print the hash like real Git
-    char hex[HASH_HEX_SIZE + 1];
+    // 7. Store the ID in the output parameter (solves the conflict)
+    if (commit_id_out) {
+        *commit_id_out = commit_id;
+    }
+
+    char hex[65];
     hash_to_hex(&commit_id, hex);
     printf("[%s] %s\n", hex, message);
 
