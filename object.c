@@ -80,8 +80,7 @@ int object_exists(const ObjectID *id) {
 //   8. Open and fsync() the shard directory to persist the rename
 //   9. Store the computed hash in *id_out
 
-// HINTS - Useful syscalls and functions for this phase:
-//   - sprintf / snprintf : formatting the header string
+// HINTS - Useful syscalls and functions for this phase://   - sprintf / snprintf : formatting the header string
 //   - compute_hash       : hashing the combined header + data
 //   - object_exists      : checking for deduplication
 //   - mkdir              : creating the shard directory (use mode 0755)
@@ -89,12 +88,10 @@ int object_exists(const ObjectID *id) {
 //                          (Use O_CREAT | O_WRONLY | O_TRUNC, mode 0644)
 //   - fsync              : flushing the file descriptor to disk
 //   - rename             : atomically moving the temp file to the final path
-//
 
-//
+
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TO DO:Implement
     char header[64];
     int header_len = snprintf(header, sizeof(header), "%s %zu",
         (type == OBJ_BLOB ? "blob" : type == OBJ_TREE ? "tree" : "commit"),
