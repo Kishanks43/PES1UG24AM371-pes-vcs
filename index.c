@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+#include "pes.h"
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
@@ -135,10 +136,36 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    // Start with an empty index
+    index->count = 0;
+    
+    // Open the index file for reading
+    FILE *f = fopen(".pes/index", "r");
+    if (!f) {
+        // If it doesn't exist, it's not an error (just an empty staging area)
+        return 0; 
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), f)) {
+        if (index->count >= MAX_INDEX_ENTRIES) break;
+
+        IndexEntry *entry = &index->entries[index->count];
+        char hex_hash[65];
+        
+        // Parse the line format: <mode> <hash-hex> <mtime> <size> <path>
+        // %o reads octal, %64s reads the hash string, %lu reads uint64, %u reads uint32, %[^\n] reads the rest of line
+        if (sscanf(line, "%o %64s %lu %u %[^\n]", 
+                   &entry->mode, hex_hash, &entry->mtime_sec, &entry->size, entry->path) == 5) {
+            
+            // Convert the parsed hex string back into the binary ObjectID struct
+            if (hex_to_hash(hex_hash, &entry->hash) == 0) {
+                index->count++;
+            }
+        }
+    }
+    fclose(f);
+    return 0;
 }
 
 // Save the index to .pes/index atomically.
