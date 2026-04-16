@@ -131,6 +131,22 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //
 // Returns 0 on success, -1 on error.
 // Recursive helper function to build trees at specific directory depths
+#include "index.h"
+#include <stdio.h>
+
+// 1. Declare object_write to fix the implicit declaration warning
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
+// 2. The "Weak" Dummy Function (Fixes the Makefile Linker Bug)
+// Because test_tree doesn't link index.o, this placeholder satisfies the compiler 
+// for Phase 2. Once you write the real index_load in Phase 3 and build the full 
+// 'pes' binary, the C compiler will automatically ignore this weak one!
+__attribute__((weak)) int index_load(Index *index) {
+    if (index) index->count = 0;
+    return 0;
+}
+
+// Recursive helper function to build trees at specific directory depths
 static int build_tree_level(IndexEntry *entries, int count, int path_offset, ObjectID *out_id) {
     Tree tree;
     tree.count = 0;
@@ -148,8 +164,8 @@ static int build_tree_level(IndexEntry *entries, int count, int path_offset, Obj
             entry->mode = entries[i].mode;
             entry->hash = entries[i].hash; 
             
-            strncpy(entry->name, subpath, sizeof(entry->name) - 1);
-            entry->name[sizeof(entry->name) - 1] = '\0';
+            // Fix for the strncpy truncation warning: Use snprintf
+            snprintf(entry->name, sizeof(entry->name), "%s", subpath);
             
             i++;
         } else {
@@ -158,8 +174,9 @@ static int build_tree_level(IndexEntry *entries, int count, int path_offset, Obj
             char dir_name[256];
             
             if (dir_len >= (int)sizeof(dir_name)) return -1;
-            strncpy(dir_name, subpath, dir_len);
-            dir_name[dir_len] = '\0';
+            
+            // Fix for the strncpy truncation warning: Use snprintf
+            snprintf(dir_name, dir_len + 1, "%s", subpath);
 
             // Find all contiguous entries that belong in this subdirectory
             int j = i;
@@ -174,7 +191,6 @@ static int build_tree_level(IndexEntry *entries, int count, int path_offset, Obj
 
             // Recursively build the subtree for this directory
             ObjectID subtree_id;
-            // Shift path_offset past "dirname/" (+1 for the slash)
             if (build_tree_level(&entries[i], j - i, path_offset + dir_len + 1, &subtree_id) != 0) {
                 return -1;
             }
@@ -186,14 +202,14 @@ static int build_tree_level(IndexEntry *entries, int count, int path_offset, Obj
             entry->mode = MODE_DIR; // 0040000
             entry->hash = subtree_id;
             
-            strncpy(entry->name, dir_name, sizeof(entry->name) - 1);
-            entry->name[sizeof(entry->name) - 1] = '\0';
+            // Fix for the strncpy truncation warning: Use snprintf
+            snprintf(entry->name, sizeof(entry->name), "%s", dir_name);
 
             i = j; // Skip past all entries handled by the recursive call
         }
     }
 
-    // Serialize the populated Tree struct into binary (this handles the sorting internally)
+    // Serialize the populated Tree struct into binary
     void *tree_data = NULL;
     size_t tree_len = 0;
     if (tree_serialize(&tree, &tree_data, &tree_len) != 0) {
