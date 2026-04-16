@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include "index.h"
 #include "pes.h"
+
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
@@ -224,7 +225,7 @@ static int build_tree_level(IndexEntry *entries, int count, int path_offset, Obj
 }
 
 // Build a tree hierarchy from the current index and write all tree
-// objects to the object store.
+
 int tree_from_index(ObjectID *id_out) {
     Index idx;
     
