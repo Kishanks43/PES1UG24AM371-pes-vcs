@@ -197,15 +197,15 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     Commit commit;
     memset(&commit, 0, sizeof(Commit));
 
-    // 1. Build the tree from the index
-    if (tree_from_index(&commit.tree) != 0) {
-        fprintf(stderr, "error: nothing to commit (is the index empty?)\n");
-        return -1;
-    }
+    // 1. Get the parent FROM THE CURRENT HEAD before we do anything else
+    // If head_read returns 0, it successfully found a parent.
+    // If it returns -1, it's the first commit, so parent stays zeros.
+    head_read(&commit.parent); 
 
-    // 2. Set the parent commit (if HEAD exists)
-    if (head_read(&commit.parent) != 0) {
-        // First commit: parent hash stays all zeros
+    // 2. Build the tree from the index
+    if (tree_from_index(&commit.tree) != 0) {
+        fprintf(stderr, "error: nothing to commit (index empty?)\n");
+        return -1;
     }
 
     // 3. Set metadata
@@ -213,12 +213,10 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     commit.timestamp = (uint64_t)time(NULL);
     strncpy(commit.message, message, sizeof(commit.message) - 1);
 
-    // 4. Serialize commit to buffer
+    // 4. Serialize to buffer
     void *buffer = NULL;
     size_t len = 0;
-    if (commit_serialize(&commit, &buffer, &len) != 0) {
-        return -1;
-    }
+    if (commit_serialize(&commit, &buffer, &len) != 0) return -1;
 
     // 5. Write the commit object
     ObjectID commit_id;
@@ -228,15 +226,13 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     }
     free(buffer);
 
-    // 6. Update HEAD
+    // 6. VERY IMPORTANT: Update HEAD so the NEXT commit can find this one
     if (head_update(&commit_id) != 0) {
+        fprintf(stderr, "error: failed to update HEAD\n");
         return -1;
     }
 
-    // 7. Store the ID in the output parameter (solves the conflict)
-    if (commit_id_out) {
-        *commit_id_out = commit_id;
-    }
+    if (commit_id_out) *commit_id_out = commit_id;
 
     char hex[65];
     hash_to_hex(&commit_id, hex);
