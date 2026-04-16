@@ -179,23 +179,64 @@ int head_update(const ObjectID *new_commit) {
     return rename(tmp_path, target_path);
 }
 
-// ─── TODO: Implement these ───────────────────────────────────────────────────
+// ─── TODO: Implement this ───────────────────────────────────────────────────
 
-// Create a new commit from the current staging area.
+// Create a new commit from the current index state.
 //
-// HINTS - Useful functions to call:
-//   - tree_from_index   : writes the directory tree and gets the root hash
-//   - head_read         : gets the parent commit hash (if any)
-//   - pes_author        : retrieves the author name string (from pes.h)
-//   - time(NULL)        : gets the current unix timestamp
-//   - commit_serialize  : converts the filled Commit struct to a text buffer
-//   - object_write      : saves the serialized text as OBJ_COMMIT
-//   - head_update       : moves the branch pointer to your new commit
+// HINTS - Useful functions and concepts:
+//   - tree_from_index : builds the tree hierarchy and returns the root hash
+//   - head_read       : gets the hash of the current HEAD commit (parent)
+//   - pes_author      : gets the "Name <email>" string from environment
+//   - time(NULL)      : gets the current Unix timestamp
+//   - object_write    : saves the commit object to the store
+//   - head_update     : moves the HEAD pointer to the new commit hash
 //
 // Returns 0 on success, -1 on error.
-int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
-    return -1;
+int commit_create(const char *message) {
+    Commit commit;
+    memset(&commit, 0, sizeof(Commit));
+
+    // 1. Build the tree from the index (the snapshot of staged files)
+    if (tree_from_index(&commit.tree) != 0) {
+        fprintf(stderr, "error: nothing to commit (is the index empty?)\n");
+        return -1;
+    }
+
+    // 2. Set the parent commit (if HEAD exists)
+    // If head_read returns -1, it's likely the first commit (no parent).
+    if (head_read(&commit.parent) != 0) {
+        // First commit: set parent hash to all zeros (already done by memset)
+    }
+
+    // 3. Set metadata
+    strncpy(commit.author, pes_author(), sizeof(commit.author) - 1);
+    commit.timestamp = (uint64_t)time(NULL);
+    strncpy(commit.message, message, sizeof(commit.message) - 1);
+
+    // 4. Serialize the commit struct into a text buffer
+    void *buffer = NULL;
+    size_t len = 0;
+    if (commit_serialize(&commit, &buffer, &len) != 0) {
+        return -1;
+    }
+
+    // 5. Write the commit object to the store
+    ObjectID commit_id;
+    if (object_write(OBJ_COMMIT, buffer, len, &commit_id) != 0) {
+        free(buffer);
+        return -1;
+    }
+    free(buffer);
+
+    // 6. Update HEAD (and the main branch) to point to the new commit
+    if (head_update(&commit_id) != 0) {
+        return -1;
+    }
+
+    // Success! Print the hash like real Git
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(&commit_id, hex);
+    printf("[%s] %s\n", hex, message);
+
+    return 0;
 }
